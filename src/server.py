@@ -5,25 +5,28 @@ import json
 
 model = None
 
+def get_model():
+    global model
+    if model is None:
+       model = YOLO("yolov8n.pt")
+    return model
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model
-    model = YOLO("yolo11n.pt")  # loads once on startup
     yield
-    model = None
 
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/hello")
+@app.get("/")
 def home():
-    return {"message": "Hello from Render!"}
+    return {"message": "Hello from Blueberry!"}
 
 @app.get("/predict")
 def predict(image_url: str):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
-
-    results = model(image_url)
-    return {
-        "results": [json.loads(r.to_json()) for r in results]
-    }
+    try:
+        results = get_model()(image_url)
+        return {
+            "results": [json.loads(r.to_json()) for r in results]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
