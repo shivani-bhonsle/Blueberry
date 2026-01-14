@@ -1,48 +1,40 @@
 from ultralytics import YOLO
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import uvicorn
+import os
 import json
 
 app = FastAPI()
 
-# Load a model
-# using 'yolo11n.pt' as in the original code (assuming it exists or will be downloaded)
-model = YOLO("yolo11m.pt")
+# Load the model once on startup
+try:
+    model = YOLO("yolo11m.pt")  # Make sure yolo11m.pt is in the repo
+except Exception as e:
+    print("Error loading YOLO model:", e)
+    model = None
 
 @app.get("/hello")
 def home():
-    return "Hello from Render!"
+    return {"message": "Hello from Render!"}
 
 @app.get("/predict")
 def predict(image_url: str):
-    """
-    Run inference on the provided image URL.
-    """
-    print(f"Processing URL: {image_url}")
+    if not model:
+        raise HTTPException(status_code=500, detail="Model not loaded")
     
-    # Run inference
-    # The model() call returns a list of Results objects
-    results = model(image_url)
+    try:
+        results = model(image_url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
-    # Process results
     output = []
     for result in results:
-        boxes = result.boxes  # Boxes object for bounding box outputs
-        masks = result.masks  # Masks object for segmentation masks outputs
-        keypoints = result.keypoints  # Keypoints object for pose outputs
-        probs = result.probs  # Probs object for classification outputs
-        obb = result.obb  # Oriented boxes object for OBB outputs
-        result.show()
-        result.save()
-        # result.to_json() returns a JSON string representing the detections
-        json_str = result.to_json()
-        # Parse it back to a python object so FastAPI can serialize it properly in the response
-        data = json.loads(json_str)
-        print(data)
+        # Only return JSON results, no GUI calls
+        data = json.loads(result.to_json())
         output.append(data)
         
     return {"results": output}
 
 if __name__ == "__main__":
-    # Run the server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
